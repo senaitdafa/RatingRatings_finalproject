@@ -32,14 +32,13 @@ def request(host, path, api_key, url_params=None):
     return response.json()
 
 
-def search(api_key, term):
+def search(api_key, term, searchLim):
     url_params = {
         'term': term.replace(' ', '+'),
         'location': DEFAULT_LOCATION,
-        'limit': SEARCH_LIMIT
+        'limit': searchLim
     }
     return request(API_HOST, SEARCH_PATH, api_key, url_params=url_params)
-
 
 def get_business(api_key, business_id):
     business_path = BUSINESS_PATH + business_id
@@ -51,25 +50,20 @@ def setUpDatabase(db_name):
     cur = conn.cursor()
     return cur, conn
 
-def getRestoIds(cur, conn, names):
-    cur.execute("CREATE TABLE if NOT EXISTS ids (name VARCHARS, id VARCHARS)")
-    cur.execute("DELETE FROM ids")
-    
-    ''' FOR GETTING ONLINE: USE THIS AND DELETE IDS BELOW
-    ids = []
-    for resto in names:
-        data = search(API_KEY, resto)
-        id = data['businesses'][0]['id']
-        ids[resto] = id
-        '''
-    
-    ids = {'Sava’s': 'Fv2VLzVj9ATLcTbFehTDjg', 'Jolly Pumpkin': 'ZJVhCAjBeRlzLhgRVVJD5Q', 'Slurping Turtle': '6yjTZfR3dxb77XoFKT8U1w', 'Miss Kim’s': '6nLwTxr6P5vIU_lZBAzeOw', 'Zingerman’s Roadhouse': 'fQ8c9S6jitKS5RT6S-ziGA', 'Chop House': 'YW8P3qfoLuGGZmHhTG1sgg', 'Weber’s Restaurant': 'tE_oCseh9BIe39AcZzOUEg', 'Mani Osteria': '4REtzXpQYy8dVev8RjWbSQ', 'Isalita': 'GPzt1fncpK_Foi_DBYlYBg', 'Aventura': 'yNIYH9041m1JEyRS-N_LNw', 'Blue Nile': 'yLx8vO015iMCbxsI045Vkw'}
-
-    count = 0
-    for resto in names:
-        do = "INSERT INTO ids VALUES ('%s', '%s')"%(resto, ids[resto])
-        cur.execute(do)
-        conn.commit()
+def makeIdTable(cur, conn, dict):
+    cur.execute("SELECT * FROM ids")
+    prev = cur.fetchall()
+    isUnique = True
+    for resto in dict:
+        for place in prev:
+            if place[1] == dict[resto]:
+                isUnique = False
+        if isUnique:
+            name = resto.replace("'", "")
+            do = "INSERT INTO ids VALUES ('%s', '%s')"%(name, dict[resto])
+            cur.execute(do)
+            conn.commit()
+        isUnique = True
 
 def getRestoInfo(cur, conn, ids):
     cur.execute("CREATE TABLE if NOT EXISTS restoInfo (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
@@ -110,19 +104,41 @@ def getRestoInfo(cur, conn, ids):
             else:
                 restoType = 'Dine in'
         #Get price
-        price = data['price']
-
+        if 'price' in data:
+            price = data['price']
+        else:
+            price = ''
         query = "INSERT INTO restoInfo VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, restoType, price)
         cur.execute(query)
         conn.commit()
 
+def getNameId(toSearch, amount):
+    data = {}
+    dataSet = search(API_KEY, toSearch, amount)
+    for item in dataSet['businesses']:
+        data[item['name']] = item['id']
+    return data
 
 
 def main():
-    names = ["Sava’s", "Jolly Pumpkin", "Slurping Turtle", "Miss Kim’s", "Zingerman’s Roadhouse", "Chop House", "Weber’s Restaurant", "Mani Osteria", "Isalita", "Aventura", "Blue Nile"]
+    # Set of restaurants used across 3 platforms to compare
+    ids = {'Sava’s': 'Fv2VLzVj9ATLcTbFehTDjg', 'Jolly Pumpkin': 'ZJVhCAjBeRlzLhgRVVJD5Q', 'Slurping Turtle': '6yjTZfR3dxb77XoFKT8U1w', 'Miss Kim’s': '6nLwTxr6P5vIU_lZBAzeOw', 'Zingerman’s Roadhouse': 'fQ8c9S6jitKS5RT6S-ziGA', 'Chop House': 'YW8P3qfoLuGGZmHhTG1sgg', 'Weber’s Restaurant': 'tE_oCseh9BIe39AcZzOUEg', 'Mani Osteria': '4REtzXpQYy8dVev8RjWbSQ', 'Isalita': 'GPzt1fncpK_Foi_DBYlYBg', 'Aventura': 'yNIYH9041m1JEyRS-N_LNw', 'Blue Nile': 'yLx8vO015iMCbxsI045Vkw'}
+    # Get results of different sources
+    dataDinn = getNameId("dinner", 25)
+    dataBar = getNameId("bar", 25)
+    dataBreak = getNameId("breakfast", 25)
+    dataFast = getNameId("fast food", 25)
+    dataCof= getNameId("coffee", 25)
     
     cur, conn = setUpDatabase('yelp.db')
-    getRestoIds(cur, conn, names)
+    cur.execute("CREATE TABLE if NOT EXISTS ids (name VARCHARS, id VARCHARS)")
+    cur.execute("DELETE FROM ids")
+    makeIdTable(cur, conn, ids)
+    makeIdTable(cur, conn, dataDinn)
+    makeIdTable(cur, conn, dataBar)
+    makeIdTable(cur, conn, dataBreak)
+    makeIdTable(cur, conn, dataFast)
+    makeIdTable(cur, conn, dataCof)
     cur.execute("SELECT * FROM ids")
     ids = cur.fetchall()
     getRestoInfo(cur, conn, ids)
