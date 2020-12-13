@@ -7,7 +7,6 @@ RADIUS = '1500'
 
 
 def get_restaurant_by_name(name):
-    """docstring"""
     try:
         r = requests.get(
             f"{API}nearbysearch/json?key={KEY}&location={LOC}&radius={RADIUS}&name={name}"
