@@ -26,7 +26,7 @@ def mine_data(cur, conn, links):
         soup = BeautifulSoup(resp.content, 'lxml')
                 
         #retreive Restaurant name
-        name = soup.find('h1', class_="_3a1XQ88S").string
+        name = soup.find('h1', class_="_3a1XQ88S").text.strip()
 
         #retrieve Price Range:
         price = soup.find('a', class_="_2mn01bsa").string  
@@ -70,31 +70,21 @@ def create_links(search_link):
         results.append(base_url+s)  
     return results
     
+def update_db(conn, cur):
+    #Search pages in order: Local(Ann Arbor), Fast Food (Ann Arbor),
+    # Mid-Range(Ann Arbor), Detroit, Grand Rapids
+    search_pages= ["https://www.tripadvisor.com/Restaurants-g29556-zft10613-Ann_Arbor_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"]
+
+    for page in search_pages:
+        mine_data(cur, conn, create_links(page))
 
 def main():
-
     cur,conn = setUpDatabase('TripAdvisor.db')
-
-    #local cuisine search page - 22 items
-    local_cuisine = "https://www.tripadvisor.com/Restaurants-g29556-zft10613-Ann_Arbor_Michigan.html"
-    create_tables(cur,conn)
-    mine_data(cur, conn,create_links(local_cuisine))
-    
-    #fast food search page - 22  items
-    fast_food = "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html"
-    mine_data(cur, conn,create_links(fast_food))
-
-    #Mid Range
-    mid_range = "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html"
-    mine_data(cur, conn,create_links(mid_range))
-
-    #Detroit Eats
-    detroit = "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html"
-    mine_data(cur,conn,create_links(detroit))
-
-    #Grand Rapids Eats
-    gr = "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"
-    mine_data(cur, conn, create_links(gr))
+    update_db(conn,cur)
 
 
 
