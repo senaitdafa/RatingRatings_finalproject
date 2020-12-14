@@ -5,6 +5,9 @@ import sqlite3
 import os
 from urllib.parse import quote
 from bs4 import BeautifulSoup
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 ###############################################################################
 # YELP
 ###############################################################################
@@ -174,8 +177,10 @@ def mine_data(cur, conn, links):
             is_open = False
 
         #retrieve rating
-        rating = soup.find('span', class_= "r2Cf69qf").text.strip()
-
+        try:
+            rating = soup.find('span', class_= "r2Cf69qf").text.strip()
+        except:
+            rating = "na"
         #retrieve type, sometimes empty
         try:
             type_list = soup.find_all('a', class_ = "_2mn01bsa")
@@ -301,6 +306,7 @@ def getDataZomato(cur, conn, data):
         query = "INSERT INTO Zomato VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, type, price)
         cur.execute(query)
         conn.commit()
+    
 
 def zomato(cur, conn):
     cur.execute("CREATE TABLE if NOT EXISTS ZomatoIds (name VARCHARS, id VARCHARS)")
@@ -327,7 +333,70 @@ def zomato(cur, conn):
     for item in ids:
         idDict[item[0]] = item[1]
     getDataZomato(cur, conn, idDict)
+###############################################################################
+# Calculations Functions
+###############################################################################
+#calculate numerical average ratings from Yelp and Trip Advisor
+def get_rating_numerical(cur, conn):
+    cur.execute("Select TripAdvisor.name, TripAdvisor.rating, Yelp.rating FROM TripAdvisor JOIN Yelp  WHERE TripAdvisor.name = Yelp.name ")
+    names = []
+    TA_vals=[]
+    Yelp_vals= []
+    for x in cur.fetchall():
+        names.append(x[0])
+        TA_vals.append(float(x[1]))
+        Yelp_vals.append(float(x[2]))
+    #plot matlab
+    fig, ax = plt.subplots()
+    n = len(names)
+    x = np.arange(n)
+    width = .35
 
+    p1 = ax.bar(x, TA_vals, width, color = 'blue')
+    p2 = ax.bar(x+width, Yelp_vals, width, color = 'green')
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, rotation = 40)
+
+    ax.autoscale_view()
+    ax.legend((p1[0],p2[0]), ('Trip Advisor', 'Yelp'))
+    ax.set_xlabel('Restaurant Name')
+    ax.set_ylabel('Average Rating')
+    ax.set_title('Average Rating Per Restaurant Per Webpage')
+    ax.grid()
+    fig.savefig("Average Rating (Numerical)")
+    plt.show()
+
+#what percent are 5, 4, 3, 2, 1 
+
+def get_TA_pie(cur, conn):
+    names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
+    ratings = []
+    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 5.0")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 4.5")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 4.0")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 3.5")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM TripAdvisor WHERE rating < 3.5")
+    ratings.append(cur.fetchone()[0])
+
+def get_Yelp_pie(cur, conn):
+    names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
+    ratings = []
+    cur.execute("SELECT rating FROM Yelp WHERE rating = 5.0")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM Yelp WHERE rating = 4.5")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM Yelp WHERE rating = 4.0")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM Yelp WHERE rating = 3.5")
+    ratings.append(cur.fetchone()[0])
+    cur.execute("SELECT rating FROM Yelp WHERE rating < 3.5")
+    ratings.append(cur.fetchone()[0])
+     
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -346,8 +415,8 @@ def main():
     conn.commit()
     cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Yelp")
-    cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    cur.execute("DELETE FROM Google")
+  #  cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    #cur.execute("DELETE FROM Google")
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
     cur.execute("DELETE FROM TripAdvisor")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
@@ -358,10 +427,13 @@ def main():
     # Call each resource
     yelp(cur, conn)
     tripadvisor(cur,conn)
+    get_rating_numerical(cur,conn)
     # OUT OF CALLS FOR ZOMATO!
     # zomato(cur, conn)
     # google(cur, conn)
-    # tripAdvisor(cur, conn)
+
+    #Calculations 
+
 
 
 main()
