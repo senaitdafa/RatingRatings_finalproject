@@ -3,13 +3,14 @@ import requests
 API = 'https://maps.googleapis.com/maps/api/place/'
 KEY = 'AIzaSyBc7m7A4hy1sASJFnQj8_vWoTaLhI3bx8U'
 LOC = '42.2780,-83.7382' #umich coordinates 
-RADIUS = '1500'
+RADIUS = '4000'
 
 
 def get_restaurant_by_name(name):
+    tup = (name.encode('utf-8'),)
     try:
         r = requests.get(
-            f"{API}nearbysearch/json?key={KEY}&location={LOC}&radius={RADIUS}&name={name}"
+            f"{API}nearbysearch/json?key={KEY}&location={LOC}&radius={RADIUS}&name={tup}"
         )
         #Place ID Details
         place_id = r.json()['results'][0]['place_id']
