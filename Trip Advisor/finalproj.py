@@ -14,6 +14,7 @@ def setUpDatabase(db_name):
 
 def create_tables(cur,conn):
     cur.execute("CREATE TABLE if NOT EXISTS restaurant_data(name VARCHARS PRIMARY KEY, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS Price_Range_Data(name VARCHARS PRIMARY KEY, price_range VARCHARS)")
     conn.commit()
 
 def mine_data(cur, conn, links):
@@ -26,8 +27,10 @@ def mine_data(cur, conn, links):
         soup = BeautifulSoup(resp.content, 'lxml')
                 
         #retreive Restaurant name
-        name = soup.find('h1', class_="_3a1XQ88S").text.strip()
-
+        try: 
+            name = soup.find('h1', class_="_3a1XQ88S").text.strip()
+        except:
+            name = "retreieve error"
         #retrieve Price Range:
         price = soup.find('a', class_="_2mn01bsa").string  
 
@@ -50,10 +53,14 @@ def mine_data(cur, conn, links):
             r_type = type_list[1].text.strip()
         except:
             r_type = ""
-        
+        try:
+            prange = soup.find (class_ = "_1XLfiSsv").text.strip()
+        except:
+            prange = "NA"
         #it will only execute if the primary key(name) is not in data base
         try:
             cur.execute("INSERT INTO Restaurant_data (name, rating, isOpen, type, price) VALUES (?,?,?,?,?)",(name,rating,is_open,r_type,price))
+            cur.execute("INSERT INTO Price_Range_Data (name, price_range) VALUES (?,?)", (name, prange))
             conn.commit()
             count += 1
         except:   
@@ -84,6 +91,7 @@ def update_db(conn, cur):
 
 def main():
     cur,conn = setUpDatabase('TripAdvisor.db')
+    create_tables(cur,conn)
     update_db(conn,cur)
 
 
