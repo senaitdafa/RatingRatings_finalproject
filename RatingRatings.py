@@ -413,35 +413,59 @@ def get_rating_numerical(cur, conn):
     fig.savefig("Average Rating (Numerical)")
     plt.show()
 
+def makePieChart(labels, sizes, name):
+    fig1, ax1 = plt.subplots()
+    ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
+            shadow=True, startangle=90)
+    ax1.axis('equal')
+    plt.title(name)
+    plt.show()
+
 #what percent are 5, 4, 3, 2, 1 
 
 def get_TA_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
-    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 5.0")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 4.5")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 4.0")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM TripAdvisor WHERE rating = 3.5")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM TripAdvisor WHERE rating < 3.5")
-    ratings.append(cur.fetchone()[0])
+    fives = 0
+    fourfive = 0
+    four = 0
+    threefive = 0
+    three = 0
+    cur.execute("SELECT rating FROM TripAdvisor")
+    data = cur.fetchall()
+    for rate in data:
+        ratings.append(rate[0])
+    fives = ratings.count('5.0')
+    fourfive = ratings.count('4.5')
+    four = ratings.count('4.0')
+    threefive = ratings.count('3.5')
+    three = ratings.count('3.0')
+
+    sizes = [fives, fourfive, four, threefive, three]
+    makePieChart(names, sizes, "Average TripAdvisor Ratings")
 
 def get_Yelp_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
-    cur.execute("SELECT rating FROM Yelp WHERE rating = 5.0")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM Yelp WHERE rating = 4.5")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM Yelp WHERE rating = 4.0")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM Yelp WHERE rating = 3.5")
-    ratings.append(cur.fetchone()[0])
-    cur.execute("SELECT rating FROM Yelp WHERE rating < 3.5")
-    ratings.append(cur.fetchone()[0])
+    fives = 0
+    fourfive = 0
+    four = 0
+    threefive = 0
+    three = 0
+    cur.execute("SELECT rating FROM Yelp")
+    data = cur.fetchall()
+    for rate in data:
+        ratings.append(rate[0])
+    fives = ratings.count('5.0')
+    fourfive = ratings.count('4.5')
+    four = ratings.count('4.0')
+    threefive = ratings.count('3.5')
+    three = ratings.count('3.0')
+
+    sizes = [fives, fourfive, four, threefive, three]
+    makePieChart(names, sizes, "Average Yelp Ratings")
+
+    return sizes
      
 ###############################################################################
 # MAIN
@@ -455,16 +479,16 @@ def setUpDatabase(db_name):
 
 def main():
     cur, conn = setUpDatabase("ratings.db")
-    
+
     # Create tables for each resource
     cur.execute("DROP TABLE TripAdvisor")
     conn.commit()
     cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Yelp")
-  #  cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    #cur.execute("DELETE FROM Google")
+    cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    cur.execute("DELETE FROM Google")
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
-    #cur.execute("DELETE FROM TripAdvisor")
+    cur.execute("DELETE FROM TripAdvisor")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     # Ran out of calls for Zomato so saving data
     # cur.execute("DELETE FROM Zomato")
@@ -479,7 +503,8 @@ def main():
     # google(cur, conn)
 
     #Calculations 
-
+    get_Yelp_pie(cur, conn)
+    get_TA_pie(cur, conn)
 
 
 main()
