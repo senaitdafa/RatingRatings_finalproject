@@ -14,7 +14,7 @@ API_KEY= "VkEEqfy2J6ZQswh9VscCaOEjgPh0PZfSmn0WGf3IHI9UeCpEINpO_BRKXW0tbUhQ6dt76E
 # API constants
 API_HOST = 'https://api.yelp.com'
 SEARCH_PATH = '/v3/businesses/search'
-BUSINESS_PATH = '/v3/businesses/'  # Business ID will come after slash.
+BUSINESS_PATH = '/v3/businesses/'
 
 # Hard codes
 DEFAULT_LOCATION = 'Ann Arbor, MI'
