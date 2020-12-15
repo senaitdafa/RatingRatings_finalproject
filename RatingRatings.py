@@ -301,10 +301,12 @@ def getIdsZomato(cur, conn, term, count):
 
 # Get the important data for each restaurant
 def getDataZomato(cur, conn, data):
-    dict = {}
+    idDict = {}
     count = 0
-    for id in data:
-        rest = searchIndivZomato(data[id])
+    for resto in data:
+        idDict[resto[0]] = resto[1]
+    for resto in idDict:
+        rest = searchIndivZomato(idDict[resto])
         # Get name, rating, open, delivery, takeout, type, price
         name = rest['name'].replace("'", "")
         rating = rest['user_rating']['aggregate_rating']
@@ -356,10 +358,9 @@ def zomato(cur, conn):
     
     # Set of restaurants used across platforms to compare
     restos = ['Sava’s', 'Jolly Pumpkin', 'Slurping Turtle', 'Miss Kim’s', 'Zingerman’s Roadhouse', 'Chop House', 'Weber’s Restaurant', 'Mani Osteria', 'Isalita', 'Aventura', 'Blue Nile']
-    idsList ={}
     for name in restos:
-        idsList[name] = getIdsZomato(cur, conn, name, 1)
-    getDataZomato(cur, conn, idsList)
+        getIdsZomato(cur, conn, name, 1)
+    #getDataZomato(cur, conn, idsList)
     # Get more data:
     getIdsZomato(cur, conn, "dinner", 25)
     getIdsZomato(cur, conn, "bar", 25)
@@ -367,17 +368,14 @@ def zomato(cur, conn):
     getIdsZomato(cur, conn, "fast food", 25)
     getIdsZomato(cur, conn, "coffee", 25)
     cur.execute("SELECT * FROM ZomatoIds")
-    # Save data from table as dict instead of tuple
-    ids = cur.fetchall()
-    idDict = {}
-    for item in ids:
-        idDict[item[0]] = item[1]
+    allIds = cur.fetchall()
     # Break into groups of 25 in getRestoInfoYelp, make sure it goes through
-    # all data by collecting the length of yelpIds, run until count is that length
-    max = len(ids)
+    # all data by collecting the length of ZomatoIds, run until count is that length
+
+    max = len(allIds)
     count = 0
     while count < max:
-        count += getDataZomato(cur, conn, idDict[count:])
+        count += getDataZomato(cur, conn, allIds[count:])
 
 ###############################################################################
 # Calculations Functions
@@ -391,7 +389,8 @@ def get_rating_numerical(cur, conn):
     for x in cur.fetchall():
         names.append(x[0])
         TA_vals.append(float(x[1]))
-        Yelp_vals.append(float(x[2]))
+        if x[2] != "":
+            Yelp_vals.append(float(x[2]))
     #plot matlab
     fig, ax = plt.subplots()
     n = len(names)
@@ -419,6 +418,7 @@ def makePieChart(labels, sizes, name):
             shadow=True, startangle=90)
     ax1.axis('equal')
     plt.title(name)
+    plt.savefig(name)
     plt.show()
 
 #what percent are 5, 4, 3, 2, 1 
@@ -444,6 +444,8 @@ def get_TA_pie(cur, conn):
     sizes = [fives, fourfive, four, threefive, three]
     makePieChart(names, sizes, "Average TripAdvisor Ratings")
 
+    return sizes
+
 def get_Yelp_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
@@ -466,6 +468,50 @@ def get_Yelp_pie(cur, conn):
     makePieChart(names, sizes, "Average Yelp Ratings")
 
     return sizes
+
+def get_Zomato_pie(cur, conn):
+    names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
+    ratings = []
+    fives = 0
+    fourfive = 0
+    four = 0
+    threefive = 0
+    three = 0
+    cur.execute("SELECT rating FROM Zomato")
+    data = cur.fetchall()
+    for rate in data:
+        ratings.append(rate[0])
+    fives = ratings.count('5.0')
+    fourfive = ratings.count('4.5')
+    four = ratings.count('4.0')
+    threefive = ratings.count('3.5')
+    three = ratings.count('3.0')
+
+    sizes = [fives, fourfive, four, threefive, three]
+    makePieChart(names, sizes, "Average Zomato Ratings")
+
+    return sizes
+
+def totPercentages(set1, set2, set3):
+    names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
+    if len(set1) == 5 and len(set2) == 5 and len(set3) == 5:
+        data = []
+        percentages = []
+        total = 0
+        data.append(set1[0] + set2[0] + set3[0])
+        data.append(set1[1] + set2[1] + set3[1])
+        data.append(set1[2] + set2[2] + set3[2])
+        data.append(set1[3] + set2[3] + set3[3])
+        data.append(set1[4] + set2[4] + set3[4])
+        for val in data:
+            total += val
+        for val in data:
+            fraction = int((val / total) * 100)
+            percentages.append(fraction)
+        
+        makePieChart(names, percentages, "Average Ratings Total")
+    else:
+        print("Error with size of data sets in totPercentages")
      
 ###############################################################################
 # MAIN
@@ -478,11 +524,10 @@ def setUpDatabase(db_name):
     return cur, conn
 
 def main():
+    
     cur, conn = setUpDatabase("ratings.db")
-
+    '''
     # Create tables for each resource
-    cur.execute("DROP TABLE TripAdvisor")
-    conn.commit()
     cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Yelp")
     cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
@@ -490,23 +535,24 @@ def main():
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
     cur.execute("DELETE FROM TripAdvisor")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    # Ran out of calls for Zomato so saving data
-    # cur.execute("DELETE FROM Zomato")
-    conn.commit()
+    cur.execute("DELETE FROM Zomato")
+    conn.commit()'''
 
     # Call each resource
-    yelp(cur, conn)
-    tripadvisor(cur,conn)
-    get_rating_numerical(cur,conn)
+    #yelp(cur, conn)
+    #tripadvisor(cur,conn)
+    #get_rating_numerical(cur,conn)
     # OUT OF CALLS FOR ZOMATO!
-    # zomato(cur, conn)
+    #zomato(cur, conn)
     # google(cur, conn)
 
-    #Calculations 
-    get_Yelp_pie(cur, conn)
-    get_TA_pie(cur, conn)
+    #Calculations
+    yelpPercent = get_Yelp_pie(cur, conn)
+    taPercent = get_TA_pie(cur, conn)
+    zomPercent = get_Zomato_pie(cur, conn)
+    totPercentages(yelpPercent, taPercent, zomPercent)
+
 
 
 main()
-#yelp(cur, conn)
 
