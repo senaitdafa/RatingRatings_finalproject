@@ -104,7 +104,7 @@ def yelp(cur, conn):
             if success == True:
                 count += 1
                 if count >=25:
-                    quit()
+                    return
             else:
                 continue
                 
@@ -197,7 +197,7 @@ def update_db(conn, cur):
         if worked == True:
             count += 1
             if count >=25:
-                quit()
+                return
         else:
             continue
         
@@ -280,7 +280,7 @@ def zomato(cur, conn):
             if success == True:
                 count += 1
                 if count >=25:
-                    quit()
+                    return
             else:
                 continue
                 
@@ -362,47 +362,57 @@ def get_rating_numerical(cur, conn):
     plt.show()
 
 def makePieChart(labels, sizes, name):
-    fig1, ax1 = plt.subplots()
-    ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
-            shadow=True, startangle=90)
-    ax1.axis('equal')
+    #fig1, ax1 = plt.subplots()
+    fig = plt.figure(figsize = (10, 7))
+    legend = []
+    for x in range(len(labels)):
+        legend.append(labels[x] + " - " + str(sizes[x]) + "%")
+    cols = ['mediumseagreen', 'yellowgreen', 'yellow', 'orange', 'orangered']
+    plt.pie(sizes, colors = cols)
     plt.title(name)
+    plt.legend(legend)
     plt.savefig(name)
     plt.show()
 
-#what percent are 5, 4, 3, 2, 1 
+#what percent are 5, 4, 3, 2, 1
 
 def get_TA_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
+    percentages = []
+    cur.execute("SELECT rating FROM TripAdvisor")
+    data = cur.fetchall()
+    for rate in data:
+        ratings.append(rate[0])
     fives = 0
     fourfive = 0
     four = 0
     threefive = 0
     three = 0
-    cur.execute("SELECT rating FROM TripAdvisor")
-    data = cur.fetchall()
-    for rate in data:
-        ratings.append(rate[0])
-    fives = ratings.count('5.0')
-    fourfive = ratings.count('4.5')
-    four = ratings.count('4.0')
-    threefive = ratings.count('3.5')
-    three = ratings.count('3.0')
+    for num in ratings:
+        if num == '5.0':
+            fives += 1
+        elif num > '4.5':
+            fourfive += 1
+        elif num > '4.0':
+            four += 1
+        elif num > '3.5':
+            threefive += 1
+        else:
+            three += 1
 
+    total = len(data)
     sizes = [fives, fourfive, four, threefive, three]
+    for num in sizes:
+        percentages.append(int((num / total) * 100))
     makePieChart(names, sizes, "Average TripAdvisor Ratings")
-
+    
     return sizes
 
 def get_Yelp_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
-    fives = 0
-    fourfive = 0
-    four = 0
-    threefive = 0
-    three = 0
+    percentages = []
     cur.execute("SELECT rating FROM Yelp")
     data = cur.fetchall()
     for rate in data:
@@ -413,32 +423,46 @@ def get_Yelp_pie(cur, conn):
     threefive = ratings.count('3.5')
     three = ratings.count('3.0')
 
+    total = len(data)
     sizes = [fives, fourfive, four, threefive, three]
+    for num in sizes:
+        percentages.append(int((num / total) * 100))
     makePieChart(names, sizes, "Average Yelp Ratings")
-
+    
     return sizes
 
 def get_Zomato_pie(cur, conn):
     names = ["5.0", "4.5", "4.0", "3.5", "<3.5"]
     ratings = []
+    percentages = []
+    cur.execute("SELECT rating FROM Zomato")
+    data = cur.fetchall()
     fives = 0
     fourfive = 0
     four = 0
     threefive = 0
     three = 0
-    cur.execute("SELECT rating FROM Zomato")
-    data = cur.fetchall()
+    none = 0
     for rate in data:
         ratings.append(rate[0])
-    fives = ratings.count('5.0')
-    fourfive = ratings.count('4.5')
-    four = ratings.count('4.0')
-    threefive = ratings.count('3.5')
-    three = ratings.count('3.0')
-
+    for num in ratings:
+        if num == '5.0':
+            fives += 1
+        elif num > '4.5':
+            fourfive += 1
+        elif num > '4.0':
+            four += 1
+        elif num > '3.5':
+            threefive += 1
+        elif num == "None":
+            none += 1
+        else:
+            three += 1
+    total = len(ratings) - none
     sizes = [fives, fourfive, four, threefive, three]
-    makePieChart(names, sizes, "Average Zomato Ratings")
-
+    for num in sizes:
+        percentages.append(int((num / total) * 100))
+    makePieChart(names, percentages, "Average Zomato Ratings")
     return sizes
 
 def totPercentages(set1, set2, set3):
@@ -461,6 +485,7 @@ def totPercentages(set1, set2, set3):
         makePieChart(names, percentages, "Average Ratings Total")
     else:
         print("Error with size of data sets in totPercentages")
+
 
 ###############################################################################
 # MAIN
