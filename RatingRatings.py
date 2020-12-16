@@ -168,64 +168,55 @@ def yelp(cur, conn):
 ###############################################################################
 # TRIP ADVISOR
 ###############################################################################
-def create_tables(cur,conn):
-    cur.execute("CREATE TABLE if NOT EXISTS Price_Range_Data(name VARCHARS PRIMARY KEY, price_range VARCHARS)")
-    conn.commit()
 
-def mine_data(cur, conn, links):
+def mine_data(cur, conn, link):
     #Fetching name data
-    count = 0
-    for link in links:
-        if count > 25:
-            break
-        try:
-            resp = requests.get(link)
-            soup = BeautifulSoup(resp.content, 'lxml')
-        except:
-            print("timed out")
-            break
-                
+    try:
+        resp = requests.get(link)
+        soup = BeautifulSoup(resp.content, 'lxml')
+    except:
+        print("timed out")
+        return False
+
         #retreive Restaurant name
-        try: 
-            name = soup.find('h1', class_="_3a1XQ88S").text.strip()
-        except:
-            name = "retreieve error"
+    try:
+        name = soup.find('h1', class_="_3a1XQ88S").text.strip()
+    except:
+        name = "retreieve error"
         #retrieve Price Range:
-        price = soup.find('a', class_="_2mn01bsa").string  
+    try:
+        price = soup.find('a', class_="_2mn01bsa").string
+    except:
+        price = ""
 
         # detrieve isOpen, defaults to Closed if no information is provided
-        try:
-            o_str = soup.find('span', class_= "_2ttkbuua" ).text.strip()
-            if (o_str[0] == 'O'): #meaning Open Now
-                is_open = True
-            else: 
-                is_open = False
-        except:
+    try:
+        o_str = soup.find('span', class_= "_2ttkbuua").text.strip()
+        if (o_str[0] == 'O'):  # meaning Open Now
+            is_open = True
+        else:
             is_open = False
+    except:
+        is_open = False
 
         #retrieve rating
-        try:
-            rating = soup.find('span', class_= "r2Cf69qf").text.strip()
-        except:
-            rating = "na"
+    try:
+        rating = soup.find('span', class_="r2Cf69qf").text.strip()
+    except:
+        rating = "na"
         #retrieve type, sometimes empty
-        try:
-            type_list = soup.find_all('a', class_ = "_2mn01bsa")
-            r_type = type_list[1].text.strip()
-        except:
-            r_type = ""
-        try:
-            prange = soup.find (class_ = "_1XLfiSsv").text.strip()
-        except:
-            prange = "NA"
+    try:
+        type_list = soup.find_all('a', class_= "_2mn01bsa")
+        r_type = type_list[1].text.strip()
+    except:
+        r_type = ""
         #it will only execute if the primary key(name) is not in data base
-        try:
-            cur.execute("INSERT INTO TripAdvisor (name, rating, isOpen, type, price) VALUES (?,?,?,?,?)",(name,rating,is_open,r_type,price))
-            cur.execute("INSERT INTO Price_Range_Data (name, price_range) VALUES (?,?)", (name, prange))
-            conn.commit()
-            count += 1
-        except:   
-            continue            
+    try:
+        cur.execute("INSERT OR IGNORE INTO TripAdvisor (name, rating, isOpen, type, price) VALUES (?,?,?,?,?)", (name,rating,is_open,r_type,price))
+        conn.commit()
+        return True
+    except:
+        return False
 def create_links(search_link):
     base_url = "https://www.tripadvisor.com"
     resp = requests.get(search_link)
@@ -238,17 +229,25 @@ def create_links(search_link):
     return results
 def update_db(conn, cur):
     #Search pages in order: Local(Ann Arbor), Fast Food (Ann Arbor),
-    # Mid-Range(Ann Arbor), Detroit, Grand Rapids
+    # Mid-Range(Ann Arbor)
     search_pages= ["https://www.tripadvisor.com/Restaurants-g29556-zft10613-Ann_Arbor_Michigan.html",
     "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"]
-
+    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html"]
+    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html"
+    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"
+    links = []
     for page in search_pages:
-        mine_data(cur, conn, create_links(page))
+        for x in create_links(page):
+            links.append(x)
+    count = 0
+    for link in links:
+        worked = mine_data(cur, conn, link)
+        if worked == True:
+            count += 1
+            if count >=25:
+                exit()
+    
 def tripadvisor(cur,conn):
-    create_tables(cur,conn)
     update_db(conn,cur)
 ###############################################################################
 # ZOMATO
@@ -380,6 +379,47 @@ def zomato(cur, conn):
 ###############################################################################
 # Calculations Functions
 ###############################################################################
+def calculations(cur, conn):
+    # Create an execute select from Yelp 
+    aYelp = cur.execute("SELECT count(*) FROM Yelp WHERE price = ?",("$",)).fetchone()
+    print(aYelp[0])
+    bYelp = cur.execute("SELECT count(*) FROM Yelp WHERE price = ?",("$$",)).fetchone()
+    print(bYelp[0])
+    cYelp = cur.execute("SELECT count(*) FROM Yelp WHERE price = ?",("$$$",)).fetchone()
+    print(cYelp[0])
+    dYelp = cur.execute("SELECT count(*) FROM Yelp WHERE price = ?",("$$$$",)).fetchone()
+    print(dYelp[0])
+
+    # Create an execute select from Zomato
+    aZom = cur.execute("SELECT count(*) FROM Zomato WHERE price = ?",("$",)).fetchone()
+    print(aZom[0])
+    bZom = cur.execute("SELECT count(*) FROM Zomato WHERE price = ?",("$$",)).fetchone()
+    print(bZom[0])
+    cZom = cur.execute("SELECT count(*) FROM Zomato WHERE price = ?",("$$$",)).fetchone()
+    print(cZom[0])
+    dZom = cur.execute("SELECT count(*) FROM Zomato WHERE price = ?",("$$$$",)).fetchone()
+    print(dZom[0])
+    
+    # (8 calculations) The number of resaurants with one dolar sign devided by the total numnber of restaruants in the table 
+    totalYelp = cur.execute("SELECT count(*) FROM Yelp").fetchone()
+    print(totalYelp[0])
+    totalZom = cur.execute("SELECT count(*) FROM Zomato").fetchone()
+    print(totalZom[0])
+    #Calcultions
+    
+
+#Output into the file
+    f = open("calculationsfile.txt", "w")
+    f.write(str(aYelp[0] / totalYelp[0])+"\n")
+    f.write(str(bYelp[0] / totalYelp[0])+"\n")
+    f.write(str(cYelp[0] / totalYelp[0])+"\n")
+    f.write(str(dYelp[0] / totalYelp[0])+"\n")
+
+    f.write(str(aZom[0] / totalZom[0])+"\n")
+    f.write(str(bZom[0] / totalZom[0])+"\n")
+    f.write(str(cZom[0] / totalZom[0])+"\n")
+    f.write(str(dZom[0] / totalZom[0])+"\n")
+    f.close()
 #calculate numerical average ratings from Yelp and Trip Advisor
 def get_rating_numerical(cur, conn):
     cur.execute("Select TripAdvisor.name, TripAdvisor.rating, Yelp.rating FROM TripAdvisor JOIN Yelp  WHERE TripAdvisor.name = Yelp.name ")
@@ -520,37 +560,36 @@ def totPercentages(set1, set2, set3):
 def setUpDatabase(db_name):
     path = os.path.dirname(os.path.abspath(__file__))
     conn = sqlite3.connect(path+'/'+db_name)
+    conn.execute("PRAGMA foreign_keys = 1")
     cur = conn.cursor()
     return cur, conn
 
 def main():
     
     cur, conn = setUpDatabase("ratings.db")
-    '''
+    
     # Create tables for each resource
     cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Yelp")
-    cur.execute("CREATE TABLE if NOT EXISTS Google (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    cur.execute("DELETE FROM Google")
-    cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
-    cur.execute("DELETE FROM TripAdvisor")
+    cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Zomato")
-    conn.commit()'''
+    conn.commit()
 
     # Call each resource
-    #yelp(cur, conn)
-    #tripadvisor(cur,conn)
-    #get_rating_numerical(cur,conn)
+    yelp(cur, conn)
+    tripadvisor(cur,conn)
+    get_rating_numerical(cur,conn)
     # OUT OF CALLS FOR ZOMATO!
-    #zomato(cur, conn)
-    # google(cur, conn)
+    zomato(cur, conn)
+ 
 
     #Calculations
     yelpPercent = get_Yelp_pie(cur, conn)
     taPercent = get_TA_pie(cur, conn)
     zomPercent = get_Zomato_pie(cur, conn)
     totPercentages(yelpPercent, taPercent, zomPercent)
+    calculations(cur, conn)
 
 
 
