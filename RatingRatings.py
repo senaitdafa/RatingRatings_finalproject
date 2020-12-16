@@ -155,18 +155,33 @@ def mine_data(cur, conn, link):
     except:
         r_type = ""
         #it will only execute if the primary key(name) is not in data base
-    
     cur.execute("SELECT EXISTS (SELECT 1 FROM TripAdvisor WHERE name = ?)",(name,))
     x = cur.fetchone()
     if x[0] == 0:
         cur.execute("INSERT OR IGNORE INTO TripAdvisor (name, rating, isOpen, type, price) VALUES (?,?,?,?,?)", (name,rating,is_open,r_type,price))
+        populate_customer_reviews(cur, conn, soup)   
         conn.commit()
         return True
     else:
         return False
 
+def populate_customer_reviews(cur, conn, soup):
+    try:
+        name = soup.find('h1', class_="_3a1XQ88S").text.strip()
+    except:
+        name = "retreieve error"
     
-    
+    reviews = soup.find_all('p', class_="partial_entry")
+    for r in reviews:
+        try:
+            review = r.text.strip()
+            cur.execute("INSERT OR IGNORE INTO CustReviews (name, review) VALUES (?,?)", (name,review))
+            conn.commit()
+        except:
+            review = "This review contained no text or error"
+            cur.execute("INSERT OR IGNORE INTO CustReviews (name, review) VALUES (?,?)", (name,review))
+            conn.commit()
+                
 
 def create_links(search_link):
     base_url = "https://www.tripadvisor.com"
@@ -182,25 +197,27 @@ def create_links(search_link):
 def update_db(conn, cur):
     #Search pages in order: Local(Ann Arbor), Fast Food (Ann Arbor),
     # Mid-Range(Ann Arbor)
+
+    
+    
     search_pages= ["https://www.tripadvisor.com/Restaurants-g29556-zft10613-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"]
+    "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html"]
     links = []
     for page in search_pages:
         for x in create_links(page):
             links.append(x)
-    count = 0
+    
+    twenty_count = 0
+    hundred_count = 0
     for link in links:
         worked = mine_data(cur, conn, link)
         if worked == True:
-            count += 1
-            if count >=25:
+            twenty_count += 1
+            hundred_count +=10
+            if twenty_count >=2 and hundred_count < 100:
                 quit()
         else:
             continue
-        
     
 def tripadvisor(cur,conn):
     update_db(conn,cur)
@@ -319,15 +336,17 @@ def calculations(cur, conn):
 
 #Output into the file
     f = open("calculationsfile.txt", "w")
-    f.write(str(aYelp[0] / totalYelp[0])+"\n")
-    f.write(str(bYelp[0] / totalYelp[0])+"\n")
-    f.write(str(cYelp[0] / totalYelp[0])+"\n")
-    f.write(str(dYelp[0] / totalYelp[0])+"\n")
+    f.write("Calculating the percent of restaurants in the Yelp and Zomato tables at each price level \n Yelp: \n")
+    
+    f.write("Level $" + str(aYelp[0] / totalYelp[0])+"%\n")
+    f.write("Level $$" +str(bYelp[0] / totalYelp[0])+"%\n")
+    f.write("Level $$$" +str(cYelp[0] / totalYelp[0])+"%\n")
+    f.write("Level $$$$" +str(dYelp[0] / totalYelp[0])+"%\n")
 
-    f.write(str(aZom[0] / totalZom[0])+"\n")
-    f.write(str(bZom[0] / totalZom[0])+"\n")
-    f.write(str(cZom[0] / totalZom[0])+"\n")
-    f.write(str(dZom[0] / totalZom[0])+"\n")
+    f.write("Level $" +str(aZom[0] / totalZom[0])+"%\n")
+    f.write("Level $$" +str(bZom[0] / totalZom[0])+"%\n")
+    f.write("Level $$$" +str(cZom[0] / totalZom[0])+"%\n")
+    f.write("Level $$$$" +str(dZom[0] / totalZom[0])+"%\n")
     f.close()
 #calculate numerical average ratings from Yelp and Trip Advisor
 def get_rating_numerical(cur, conn):
@@ -485,9 +504,12 @@ def main():
     cur, conn = setUpDatabase("ratings.db")
     
     # Create tables for each resource
+    
     cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS CustReviews(id INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, name VARCHAR, review VARCHAR, FOREIGN KEY(name) REFERENCES TripAdvisor(name))")
+
     conn.commit()
     
     # Call each resource
