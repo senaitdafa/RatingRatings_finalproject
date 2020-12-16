@@ -92,7 +92,7 @@ def getRestoInfoYelp(cur, conn, data):
     except:
         return False
 
-def updateData(cur, conn):
+def yelp(cur, conn):
     types = ["dinner", "bar", "breakfast", "fast food", "coffee"]
     count = 0
     for type in types:
@@ -103,8 +103,6 @@ def updateData(cur, conn):
             if count > 25:
                 return
 
-def yelp(cur, conn):
-    updateData(cur, conn)
 
 
 ###############################################################################
@@ -256,7 +254,7 @@ def getDataZomato(cur, conn, jsonData):
     except:
         return False
 
-def updateZomData(cur, conn):
+def zomato(cur, conn):
     types = ["dinner", "bar", "breakfast", "fast food", "coffee"]
     count = 0
     for type in types:
@@ -266,9 +264,6 @@ def updateZomData(cur, conn):
             count += 1
             if count >= 25:
                 return
-
-def zomato(cur, conn):
-    updateZomData(cur, conn)
 
 ###############################################################################
 # Calculations Functions
@@ -458,14 +453,6 @@ def setUpDatabase(db_name):
     cur = conn.cursor()
     return cur, conn
 
-#FOR TESTING PURPOSES: deletes data from all dbs
-def clearDb(cur, conn):
-    cur.execute("DELETE FROM Yelp")
-    cur.execute("DELETE FROM Zomato")
-    cur.execute("DELETE FROM TripAdvisor")
-    cur.execute("DELETE FROM Price_Range_Data")
-    conn.commit()
-
 def visualizations(cur, conn):
     yelpPercent = get_Yelp_pie(cur, conn)
     taPercent = get_TA_pie(cur, conn)
@@ -482,15 +469,12 @@ def main():
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
     cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     conn.commit()
-    
-    #clearDb(cur, conn)
 
     # Call each resource
     yelp(cur, conn)
     tripadvisor(cur,conn)
     zomato(cur, conn)
  
-
     #Calculations
     visualizations(cur, conn)
 
