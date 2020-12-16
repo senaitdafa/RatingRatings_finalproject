@@ -39,131 +39,73 @@ def searchYelp(api_key, term, searchLim):
     }
     return request(API_HOST, SEARCH_PATH, api_key, url_params=url_params)
 
-# Get data for specific restaurants using the id
-def getBusinessYelp(api_key, business_id):
-    business_path = BUSINESS_PATH + business_id
-    return request(API_HOST, business_path, api_key)
-
-# Get and store ids
-def makeIdTableYelp(cur, conn, dict):
-    cur.execute("SELECT * FROM yelpIds")
-    prev = cur.fetchall()
-    isUnique = True
-    for resto in dict:
-        for place in prev:
-            if place[1] == dict[resto]:
-                isUnique = False
-        if isUnique:
-            name = resto.replace("'", "")
-            do = "INSERT INTO yelpIds VALUES ('%s', '%s')"%(name, dict[resto])
-            cur.execute(do)
-            conn.commit()
-        isUnique = True
 
 # Get the important data from each restaurant using the id
-def getRestoInfoYelp(cur, conn, ids):
+def getRestoInfoYelp(cur, conn, data):
     count = 0
     #Get name, rating, open, delivery, takeout, type, price
-    for item in ids:
-        name = item[0]
-        data = getBusinessYelp(YELP_API_KEY, item[1])
-        #Get rating
-        if 'rating' in data:
-            rating = data['rating']
-        else:
-            rating = ''
-        #Get open
-        if 'is_closed' in data:
-            if data['is_closed'] == 'True':
-                open = True
-            else:
-                open = False
+    name = data['name']
+    #Get rating
+    if 'rating' in data:
+        rating = data['rating']
+    else:
+        rating = ''
+    #Get open
+    if 'is_closed' in data:
+        if data['is_closed'] == 'True':
+            open = True
         else:
             open = False
-        #Get delivery and Takeout
-        if 'transactions' in data:
-            if 'delivery' in data['transactions']:
-                delivery = True
-            else: delivery = False
-            if 'pickup' in data['transactions']:
-                takeout = True
-            else: takeout = False
+    else:
+        open = False
+    #Get delivery and Takeout
+    if 'transactions' in data:
+        if 'delivery' in data['transactions']:
+            delivery = True
+        else: delivery = False
+        if 'pickup' in data['transactions']:
+            takeout = True
+        else: takeout = False
+    else:
+        delivery = False
+        takeout = False
+    #Get type
+    types = ''
+    restoType = ''
+    if 'categories' in data:
+        for type in data['categories']:
+            types = types + " " + type['title']
+        if 'Bars' in types:
+            restoType = 'Bar'
         else:
-            delivery = False
-            takeout = False
-        #Get type
-        types = ''
-        restoType = ''
-        if 'categories' in data:
-            for type in data['categories']:
-                types = types + " " + type['title']
-            if 'Bars' in types:
-                restoType = 'Bar'
-            else:
-                restoType = 'Dine in'
-        #Get price
-        if 'price' in data:
-            price = data['price']
-        else:
-            price = ''
-        cur.execute("SELECT * FROM yelpIds")
-        prev = cur.fetchall()
-        isUnique = True
-        query = "INSERT INTO Yelp VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, restoType, price)
+            restoType = 'Dine in'
+    #Get price
+    if 'price' in data:
+        price = data['price']
+    else:
+        price = ''
+    try:
+        query = "INSERT OR IGNORE INTO Yelp VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, restoType, price)
         cur.execute(query)
         conn.commit()
-        # Make sure only 25 are called at a time using a count
-        count += 1
-        if count == 25:
-            return count
-    # If less than 25 are left, simply end
-    return count
+        return True
+    except:
+        return False
 
-# Uses search functions to get name and id
-def getNameIdYelp(toSearch, amount):
-    data = {}
-    dataSet = searchYelp(YELP_API_KEY, toSearch, amount)
-    for item in dataSet['businesses']:
-        data[item['name']] = item['id']
-    return data
+def updateData(cur, conn):
+    types = ["dinner", "bar", "breakfast", "fast food", "coffee"]
+    count = 0
+    for type in types:
+        data = searchYelp(YELP_API_KEY, type, 25)
+        for resto in data['businesses']:
+            success = getRestoInfoYelp(cur, conn, resto)
+            count += 1
+            if count > 25:
+                return
 
 def yelp(cur, conn):
-    # Set of restaurants used across 3 platforms to compare
-    ids = {'Sava’s': 'Fv2VLzVj9ATLcTbFehTDjg', 'Jolly Pumpkin': 'ZJVhCAjBeRlzLhgRVVJD5Q', 'Slurping Turtle': '6yjTZfR3dxb77XoFKT8U1w', 'Miss Kim’s': '6nLwTxr6P5vIU_lZBAzeOw', 'Zingerman’s Roadhouse': 'fQ8c9S6jitKS5RT6S-ziGA', 'Chop House': 'YW8P3qfoLuGGZmHhTG1sgg', 'Weber’s Restaurant': 'tE_oCseh9BIe39AcZzOUEg', 'Mani Osteria': '4REtzXpQYy8dVev8RjWbSQ', 'Isalita': 'GPzt1fncpK_Foi_DBYlYBg', 'Aventura': 'yNIYH9041m1JEyRS-N_LNw', 'Blue Nile': 'yLx8vO015iMCbxsI045Vkw'}
-    # Get results of different sources, cap at 25
-    dataDinn = getNameIdYelp("dinner", 25)
-    dataBar = getNameIdYelp("bar", 25)
-    dataBreak = getNameIdYelp("breakfast", 25)
-    dataFast = getNameIdYelp("fast food", 25)
-    dataCof = getNameIdYelp("coffee", 25)
+    updateData(cur, conn)
 
-    # Get ids for all datapoints to use
-    cur.execute("CREATE TABLE if NOT EXISTS yelpIds (name VARCHARS, id VARCHARS)")
-    cur.execute("DELETE FROM yelpIds")
-    makeIdTableYelp(cur, conn, ids)
-    makeIdTableYelp(cur, conn, dataDinn)
-    makeIdTableYelp(cur, conn, dataBar)
-    makeIdTableYelp(cur, conn, dataBreak)
-    makeIdTableYelp(cur, conn, dataFast)
-    makeIdTableYelp(cur, conn, dataCof)
-    cur.execute("SELECT * FROM yelpIds")
-    ids = cur.fetchall()
-    
-    # Get data points and put into table
-    cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    cur.execute("DELETE FROM Yelp")
-    cur.execute("SELECT * FROM yelpIds")
-    # Break into groups of 25 in getRestoInfoYelp, make sure it goes through
-    # all data by collecting the length of yelpIds, run until count is that length
-    max = len(cur.fetchall())
-    count = 0
-    while count < max:
-        count += getRestoInfoYelp(cur, conn, ids[count:])
-
-
-###############################################################################
-# GOOGLE
-###############################################################################
 
 ###############################################################################
 # TRIP ADVISOR
@@ -217,6 +159,7 @@ def mine_data(cur, conn, link):
         return True
     except:
         return False
+
 def create_links(search_link):
     base_url = "https://www.tripadvisor.com"
     resp = requests.get(search_link)
@@ -227,6 +170,7 @@ def create_links(search_link):
         s= tag.get('href', None)
         results.append(base_url+s)  
     return results
+
 def update_db(conn, cur):
     #Search pages in order: Local(Ann Arbor), Fast Food (Ann Arbor),
     # Mid-Range(Ann Arbor)
@@ -245,7 +189,7 @@ def update_db(conn, cur):
         if worked == True:
             count += 1
             if count >=25:
-                exit()
+                return
     
 def tripadvisor(cur,conn):
     update_db(conn,cur)
@@ -263,118 +207,68 @@ def getURLZomato(search, count):
     return url
 
 # Uses getURLZomato to get search results. Count built into getURLZomato.
-def searchZomato(url):
+def searchZomato(search, count):
+    url = getURLZomato(search, count)
     req = requests.get(url, headers = HEADER)
     r = json.loads(req.text)
     return r
-
-# Get results for a specific restaurant using the restaurant id
-def searchIndivZomato(resId):
-    url = "https://developers.zomato.com/api/v2.1/restaurant?res_id=" + str(resId)
-    req = requests.get(url, headers = HEADER)
-    r = json.loads(req.text)
-    return r
-
-# Get ids and store them in a table
-def getIdsZomato(cur, conn, term, count):
-    cur.execute("SELECT * FROM ZomatoIds")
-    prev = cur.fetchall()
-    isUnique = True
-    url = getURLZomato(term, count)
-    r = searchZomato(url)
-    dict = {}
-    for rest in r['restaurants']:
-        # Get ids and names
-        id = rest['restaurant']['R']['res_id']
-        name = rest['restaurant']['name'].replace("'", "")
-        dict[name] = id
-    for rest in dict:
-        if rest in prev:
-            isUnique = False
-        if isUnique:
-            do = "INSERT INTO ZomatoIds VALUES ('%s', '%s')"%(rest, dict[rest])
-            cur.execute(do)
-            conn.commit()
-        isUnique = True
-    return id
 
 # Get the important data for each restaurant
-def getDataZomato(cur, conn, data):
-    idDict = {}
-    count = 0
-    for resto in data:
-        idDict[resto[0]] = resto[1]
-    for resto in idDict:
-        rest = searchIndivZomato(idDict[resto])x
-        # Get name, rating, open, delivery, takeout, type, price
-        name = rest['name'].replace("'", "")
-        rating = rest['user_rating']['aggregate_rating']
-        if rating == 0:
-            rating = "N/A"
-        # Only returns open restaurants
-        open = True
-        deliveryNum = rest['has_online_delivery']
-        # Get delivery / takeout
-        delivery = False
-        takeout = False
-        if deliveryNum == 0:
-            delivery = True
-        if 'Takeaway Available' in rest['highlights']:
-            takeout = True
-        # Get type - DOUBLE CHECK WHERE BARS SHOWS UP
-        if 'Bars' in rest['highlights']:
-            type = 'Bar'
-        else:
-            type = 'Dine in'
-        # Get price
-        priceNum = rest['price_range']
-        if priceNum == 1:
-            price = '$'
-        elif priceNum == 2:
-            price = '$$'
-        elif priceNum == 3:
-            price = '$$$'
-        elif priceNum == 4:
-            price = '$$$$'
-        else:
-            price = "N/A"
-        query = "INSERT INTO Zomato VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, type, price)
+def getDataZomato(cur, conn, jsonData):
+    rest = jsonData['restaurant']
+    # Get name, rating, open, delivery, takeout, type, price
+    name = rest['name'].replace("'", "")
+    rating = rest['user_rating']['aggregate_rating']
+    if rating == 0:
+        rating = "N/A"
+    # Only returns open restaurants
+    open = True
+    deliveryNum = rest['has_online_delivery']
+    # Get delivery / takeout
+    delivery = False
+    takeout = False
+    if deliveryNum == 0:
+        delivery = True
+    if 'Takeaway Available' in rest['highlights']:
+        takeout = True
+    # Get type - DOUBLE CHECK WHERE BARS SHOWS UP
+    if 'Bars' in rest['highlights']:
+        type = 'Bar'
+    else:
+        type = 'Dine in'
+    # Get price
+    priceNum = rest['price_range']
+    if priceNum == 1:
+        price = '$'
+    elif priceNum == 2:
+        price = '$$'
+    elif priceNum == 3:
+        price = '$$$'
+    elif priceNum == 4:
+        price = '$$$$'
+    else:
+        price = "N/A"
+    try:
+        query = "INSERT OR IGNORE INTO Zomato VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, type, price)
         cur.execute(query)
         conn.commit()
-        # Make sure only 25 are called at a time using a count
-        count += 1
-        if count == 25:
-            return count
-    # If less than 25 are left, simply end
-    return count
-    
+        return True
+    except:
+        return False
+
+def updateZomData(cur, conn):
+    types = ["dinner", "bar", "breakfast", "fast food", "coffee"]
+    count = 0
+    for type in types:
+        data = searchZomato(type, 25)
+        for resto in data['restaurants']:
+            success = getDataZomato(cur, conn, resto)
+            count += 1
+            if count >= 25:
+                return
 
 def zomato(cur, conn):
-    cur.execute("CREATE TABLE if NOT EXISTS ZomatoIds (name VARCHARS, id VARCHARS)")
-    cur.execute("DELETE FROM ZomatoIds")
-    cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
-    cur.execute("DELETE FROM Zomato")
-    
-    # Set of restaurants used across platforms to compare
-    restos = ['Sava’s', 'Jolly Pumpkin', 'Slurping Turtle', 'Miss Kim’s', 'Zingerman’s Roadhouse', 'Chop House', 'Weber’s Restaurant', 'Mani Osteria', 'Isalita', 'Aventura', 'Blue Nile']
-    for name in restos:
-        getIdsZomato(cur, conn, name, 1)
-    #getDataZomato(cur, conn, idsList)
-    # Get more data:
-    getIdsZomato(cur, conn, "dinner", 25)
-    getIdsZomato(cur, conn, "bar", 25)
-    getIdsZomato(cur, conn, "breakfast", 25)
-    getIdsZomato(cur, conn, "fast food", 25)
-    getIdsZomato(cur, conn, "coffee", 25)
-    cur.execute("SELECT * FROM ZomatoIds")
-    allIds = cur.fetchall()
-    # Break into groups of 25 in getRestoInfoYelp, make sure it goes through
-    # all data by collecting the length of ZomatoIds, run until count is that length
-
-    max = len(allIds)
-    count = 0
-    while count < max:
-        count += getDataZomato(cur, conn, allIds[count:])
+    updateZomData(cur, conn)
 
 ###############################################################################
 # Calculations Functions
@@ -552,7 +446,7 @@ def totPercentages(set1, set2, set3):
         makePieChart(names, percentages, "Average Ratings Total")
     else:
         print("Error with size of data sets in totPercentages")
-     
+
 ###############################################################################
 # MAIN
 ###############################################################################
@@ -564,33 +458,41 @@ def setUpDatabase(db_name):
     cur = conn.cursor()
     return cur, conn
 
-def main():
-    
-    cur, conn = setUpDatabase("ratings.db")
-    
-    # Create tables for each resource
-    cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+#FOR TESTING PURPOSES: deletes data from all dbs
+def clearDb(cur, conn):
     cur.execute("DELETE FROM Yelp")
-    cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
-    cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("DELETE FROM Zomato")
+    cur.execute("DELETE FROM TripAdvisor")
+    cur.execute("DELETE FROM Price_Range_Data")
     conn.commit()
 
-    # Call each resource
-    yelp(cur, conn)
-    tripadvisor(cur,conn)
-    get_rating_numerical(cur,conn)
-    # OUT OF CALLS FOR ZOMATO!
-    zomato(cur, conn)
- 
-
-    #Calculations
+def visualizations(cur, conn):
     yelpPercent = get_Yelp_pie(cur, conn)
     taPercent = get_TA_pie(cur, conn)
     zomPercent = get_Zomato_pie(cur, conn)
     totPercentages(yelpPercent, taPercent, zomPercent)
     calculations(cur, conn)
+    get_rating_numerical(cur,conn)
 
+def main():
+    cur, conn = setUpDatabase("ratings.db")
+    
+    # Create tables for each resource
+    cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    conn.commit()
+    
+    #clearDb(cur, conn)
+
+    # Call each resource
+    yelp(cur, conn)
+    tripadvisor(cur,conn)
+    zomato(cur, conn)
+ 
+
+    #Calculations
+    visualizations(cur, conn)
 
 
 main()
