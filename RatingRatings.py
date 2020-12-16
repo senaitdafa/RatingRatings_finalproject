@@ -84,13 +84,15 @@ def getRestoInfoYelp(cur, conn, data):
         price = data['price']
     else:
         price = ''
-    try:
-        query = "INSERT OR IGNORE INTO Yelp VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, restoType, price)
-        cur.execute(query)
+            
+    cur.execute("SELECT EXISTS (SELECT 1 FROM Yelp WHERE name = ?)",(name,))
+    x = cur.fetchone()  
+    if x[0] == 0:
+        cur.execute("INSERT OR IGNORE INTO Yelp VALUES (?, ?, ?, ?, ?, ?, ?)",(name, rating, open, delivery, takeout, restoType, price))
         conn.commit()
         return True
-    except:
-        return False
+    else:   
+        return False    
 
 def yelp(cur, conn):
     types = ["dinner", "bar", "breakfast", "fast food", "coffee"]
@@ -99,11 +101,13 @@ def yelp(cur, conn):
         data = searchYelp(YELP_API_KEY, type, 25)
         for resto in data['businesses']:
             success = getRestoInfoYelp(cur, conn, resto)
-            count += 1
-            if count > 25:
-                return
-
-
+            if success == True:
+                count += 1
+                if count >=25:
+                    quit()
+            else:
+                continue
+                
 
 ###############################################################################
 # TRIP ADVISOR
@@ -151,12 +155,18 @@ def mine_data(cur, conn, link):
     except:
         r_type = ""
         #it will only execute if the primary key(name) is not in data base
-    try:
+    
+    cur.execute("SELECT EXISTS (SELECT 1 FROM TripAdvisor WHERE name = ?)",(name,))
+    x = cur.fetchone()
+    if x[0] == 0:
         cur.execute("INSERT OR IGNORE INTO TripAdvisor (name, rating, isOpen, type, price) VALUES (?,?,?,?,?)", (name,rating,is_open,r_type,price))
         conn.commit()
         return True
-    except:
+    else:
         return False
+
+    
+    
 
 def create_links(search_link):
     base_url = "https://www.tripadvisor.com"
@@ -174,9 +184,9 @@ def update_db(conn, cur):
     # Mid-Range(Ann Arbor)
     search_pages= ["https://www.tripadvisor.com/Restaurants-g29556-zft10613-Ann_Arbor_Michigan.html",
     "https://www.tripadvisor.com/Restaurants-g29556-c10646-Ann_Arbor_Michigan.html",
-    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html"]
-    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html"
-    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"
+    "https://www.tripadvisor.com/Restaurants-g29556-Ann_Arbor_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g42139-Detroit_Michigan.html",
+    "https://www.tripadvisor.com/Restaurants-g42256-Grand_Rapids_Kent_County_Michigan.html"]
     links = []
     for page in search_pages:
         for x in create_links(page):
@@ -187,7 +197,10 @@ def update_db(conn, cur):
         if worked == True:
             count += 1
             if count >=25:
-                return
+                quit()
+        else:
+            continue
+        
     
 def tripadvisor(cur,conn):
     update_db(conn,cur)
@@ -246,12 +259,15 @@ def getDataZomato(cur, conn, jsonData):
         price = '$$$$'
     else:
         price = "N/A"
-    try:
-        query = "INSERT OR IGNORE INTO Zomato VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s')"%(name, rating, open, delivery, takeout, type, price)
-        cur.execute(query)
+    
+    
+    cur.execute("SELECT EXISTS (SELECT 1 FROM Zomato WHERE name = ?)",(name,))
+    x = cur.fetchone()  
+    if x[0] == 0:
+        cur.execute("INSERT OR IGNORE INTO Zomato VALUES (?, ?, ?, ?, ?,?, ?)",(name, rating, open, delivery, takeout, type, price))
         conn.commit()
         return True
-    except:
+    else:   
         return False
 
 def zomato(cur, conn):
@@ -261,9 +277,13 @@ def zomato(cur, conn):
         data = searchZomato(type, 25)
         for resto in data['restaurants']:
             success = getDataZomato(cur, conn, resto)
-            count += 1
-            if count >= 25:
-                return
+            if success == True:
+                count += 1
+                if count >=25:
+                    quit()
+            else:
+                continue
+                
 
 ###############################################################################
 # Calculations Functions
@@ -465,11 +485,11 @@ def main():
     cur, conn = setUpDatabase("ratings.db")
     
     # Create tables for each resource
-    cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS Yelp (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     cur.execute("CREATE TABLE if NOT EXISTS TripAdvisor (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, isOpen BOOLEAN, type VARCHARS, price VARCHARS)")
-    cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
+    cur.execute("CREATE TABLE if NOT EXISTS Zomato (name VARCHARS PRIMARY KEY UNIQUE, rating VARCHARS, open BOOLEAN, delivery BOOLEAN, takeout BOOLEAN, type LIST, price VARCHARS)")
     conn.commit()
-
+    
     # Call each resource
     yelp(cur, conn)
     tripadvisor(cur,conn)
