@@ -306,7 +306,7 @@ def getDataZomato(cur, conn, data):
     for resto in data:
         idDict[resto[0]] = resto[1]
     for resto in idDict:
-        rest = searchIndivZomato(idDict[resto])
+        rest = searchIndivZomato(idDict[resto])x
         # Get name, rating, open, delivery, takeout, type, price
         name = rest['name'].replace("'", "")
         rating = rest['user_rating']['aggregate_rating']
